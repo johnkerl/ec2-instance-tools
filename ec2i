@@ -1,0 +1,256 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# TODO: parameterize username?
+# TODO: move to a dotfile
+CONFIG="$HOME/.ec2i.json"
+
+# TODO: path-dot to miller scripts
+
+# TODO: usage stdout and exit 0 if -h
+
+OURDIR=$(dirname $0)
+OURNAME=$(basename $0)
+
+# TODO: $# checks
+
+# ----------------------------------------------------------------
+usage() {
+    echo "Usage: $OURNAME {command}" 1>&2
+    echo "Given a config file with mappings from nicknames/epithets to AWS EC2 parameters," 1>&2
+    echo "allows you to start, stop, ssh, etc. The config file encapsulates instance IDs" 1>&2
+    echo "and AWS regions, and manages IP address and PEM paths, etc, so you don't have to" 1>&2
+    echo "keystroke those out all the time." 1>&2
+    echo "" 1>&2
+    echo "Commands list:" 1>&2
+    echo "" 1>&2
+    echo "list             Show epithets and parameters" 1>&2
+    echo "config           Show the config file with epithet-to-parameter mappings" 1>&2
+    echo "" 1>&2
+    echo "start  {epithet} Start the named instance" 1>&2
+    echo "stop   {epithet} Stop  the named instance" 1>&2
+    echo "show   {epithet} Show config-file parameters for the named instance" 1>&2
+    echo "ssh    {epithet} SSH into the named instance (does not auto-start it)" 1>&2
+    echo "" 1>&2
+    echo "tags   {epithet} Shows EC2 tags for the named instance" 1>&2
+    echo "tag    {epithet} {key} {value} Sets an EC2 tag for the named instance" 1>&2
+    echo "" 1>&2
+    echo "ip     {epithet} Shows current IP-address assignment" 1>&2
+    echo "status {epithet} Shows one-word EC2 status for the named instance" 1>&2
+    echo "info   {epithet} Shows full EC2 JSON info for the named instance" 1>&2
+    echo "" 1>&2
+    echo "rel-from {epithet} {path} WIP" 1>&2
+    echo "rel-to   {epithet} {path} WIP" 1>&2
+    echo "rel-del  {epithet} {path} WIP" 1>&2
+    echo "pull-pwd {epithet} {path} WIP" 1>&2
+    echo "push-pwd {epithet} {path} WIP" 1>&2
+    exit 1
+}
+
+# ================================================================
+main() {
+    if [ $# -eq 0 ];then
+        usage
+    fi
+    command="$1"
+    shift
+
+    # No instance name required
+    if   [ "$command" = "list" ]; then
+        list_instances
+        exit 0
+    fi
+    if   [ "$command" = "config" ]; then
+        show_config
+        exit 0
+    fi
+
+    if [ $# -eq 0 ]; then
+        echo "$0: need instance epithet from $CONFIG"
+        usage
+    fi
+    epithet="$1"
+    shift
+
+    # TODO: mkfuncs
+
+    instance_id=$(jq -r '.instances[] | select(.epithet=="'$epithet'") | .instance_id' $CONFIG)
+    if [ "$instance_id" = "" ]; then
+        echo "$0: could not find instance_id for epithet $epithet within config $CONFIG"
+        exit 1
+    fi
+
+    region=$(jq -r '.instances[] | select(.epithet=="'$epithet'") | .region' $CONFIG)
+    if [ "$region" = "" ]; then
+        echo "$0: could not find region for epithet $epithet within config $CONFIG"
+        exit 1
+    fi
+
+    if [ "$command" = "start" ]; then
+        start_instance $instance_id $region
+    elif [ "$command" = "stop" ]; then
+        stop_instance $instance_id $region
+    elif [ "$command" = "show" ]; then
+        show_instance $instance_id $region
+    elif [ "$command" = "ssh" ]; then
+        ssh_instance $instance_id $region
+
+    elif [ "$command" = "ip" ]; then
+        get_ip_address $instance_id $region
+    elif [ "$command" = "status" ]; then
+        show_instance_status $instance_id $region
+    elif [ "$command" = "info" ]; then
+        show_instance_info $instance_id $region
+    elif [ "$command" = "tags" ]; then
+        show_instance_tags $instance_id $region
+    elif [ "$command" = "tag" ]; then
+        # TODO: arg-check
+        # TODO: funcify
+        set_instance_tags $instance_id $region $key $value
+
+    elif [ "$command" = "rel-from" ]; then
+        echo STUB
+    elif [ "$command" = "rel-to" ]; then
+        echo STUB
+    elif [ "$command" = "rel-del" ]; then
+        echo STUB
+    elif [ "$command" = "pull-pwd" ]; then
+        echo STUB
+    elif [ "$command" = "push-pwd" ]; then
+        echo STUB
+    else
+        usage
+    fi
+}
+
+# ec2i start $name
+# ec2i stop  $name
+# ec2i show  $name
+
+# ec2i ip     $name
+# ec2i status $name
+# ec2i info   $name
+# ec2i tags   $name
+# ec2i tag    $name $key $value
+
+# ec2i ssh    $name
+
+# ec2i rel-from $name $path
+# ec2i rel-to   $name $path
+# ec2i rel-del  $name $path
+# ec2i pull-pwd $name
+# ec2i push-pwd $name
+
+# ================================================================
+list_instances() {
+    regions=$(jq -r .instances[].region $CONFIG | sort -u)
+    for region in $regions; do
+        AWS_DEFAULT_REGION=$region aws ec2 describe-instances
+    done | mlr --j2p put -q -f $OURDIR/iis.mlr
+}
+
+show_config() {
+    jq '.pems[]' $CONFIG | mlr --j2p cat
+    echo
+    jq '.instances[]' $CONFIG | mlr --j2p cat
+}
+
+# ----------------------------------------------------------------
+show_instance() {
+    instance_id="$1"
+    region="$2"
+    AWS_DEFAULT_REGION=$region \
+        aws ec2 describe-instances --query "Reservations[0].Instances[0]" --instance-ids $instance_id \
+            | mlr --ijson --oxtab \
+              cut -o -f KeyName,InstanceType,InstanceId,Architecture,LaunchTime,Placement.AvailabilityZone,State
+}
+
+start_instance() {
+    instance_id="$1"
+    region="$2"
+    AWS_DEFAULT_REGION=$region aws ec2 start-instances --instance-ids $instance_id
+}
+
+stop_instance() {
+    instance_id="$1"
+    region="$2"
+    AWS_DEFAULT_REGION=$region aws ec2 stop-instances --instance-ids $instance_id
+}
+
+ssh_with_pem() {
+    ip_address="$1"
+    pem_path="$2"
+    ssh -i $pem_path $ip_address
+}
+
+get_ip_address() {
+    instance_id="$1"
+    region="$2"
+    aws ec2 describe-instances --instance-ids $instance_id \
+        | jq -r ".Reservations[0].Instances[0].PublicIpAddress"
+}
+
+get_pem_file() {
+    region="$1"
+    pem=$(jq -r '.pems[] | select(.region=="'$region'") | .pem' $CONFIG)
+    if [ "$pem" = "null" ]; then
+        echo "$0: could not find PEM for region $region within config $CONFIG"
+        exit 1
+    fi
+    echo $pem
+}
+
+ssh_instance() {
+    instance_id="$1"
+    region="$2"
+
+    echo
+    echo "instance_id $instance_id"
+    echo "region      $region"
+
+    ip_address=$(get_ip_address $instance_id $region)
+    echo "ip_address  $ip_address"
+
+    pem_file=$(get_pem_file $region)
+    echo "pem_file    $pem_file"
+    echo
+
+    if [ "$ip_address" = "null" ]; then
+        echo "Could not find IP address for $instance_id in $region. Is it running?"
+    else
+        ssh_with_pem ubuntu@$ip_address $pem_file
+    fi
+}
+
+show_instance_status() {
+    instance_id="$1"
+    region="$2"
+    AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id | jq -r ".Reservations[0].Instances[0].State.Name"
+}
+
+show_instance_info() {
+    instance_id="$1"
+    region="$2"
+    AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id | jq .
+}
+
+show_instance_tags() {
+    instance_id="$1"
+    region="$2"
+    AWS_DEFAULT_REGION=$region aws ec2 describe-tags --filters Name=resource-id,Values=$instance_id | jq .Tags | mlr --j2p cat
+}
+
+set_instance_tag() {
+    instance_id="$1"
+    region="$2"
+    name="$3"
+    value="$4"
+    #  if [ $# -ne 3 ]; then
+    #    echo "Need instance ID, name, value as args" 1>&2
+    #  fi
+    AWS_DEFAULT_REGION=$region aws ec2 create-tags --resources $instance_id --tags Key="$name",Value="$value"
+}
+
+# ================================================================
+main "$@"
