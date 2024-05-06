@@ -37,7 +37,7 @@ usage() {
     echo "tag    {epithet} {key} {value} Sets an EC2 tag for the named instance" 1>&2
     echo "" 1>&2
     echo "ip     {epithet} Shows current IP-address assignment" 1>&2
-    echo "status {epithet} Shows one-word EC2 status for the named instance" 1>&2
+    echo "state  {epithet} Shows one-word EC2 state for the named instance" 1>&2
     echo "info   {epithet} Shows full EC2 JSON info for the named instance" 1>&2
     echo "" 1>&2
     echo "rel-from {epithet} {path} WIP" 1>&2
@@ -47,6 +47,12 @@ usage() {
     echo "push-pwd {epithet} {path} WIP" 1>&2
     exit 1
 }
+
+# ec2i rel-from $name $path
+# ec2i rel-to   $name $path
+# ec2i rel-del  $name $path
+# ec2i pull-pwd $name
+# ec2i push-pwd $name
 
 # ================================================================
 main() {
@@ -98,8 +104,8 @@ main() {
 
     elif [ "$command" = "ip" ]; then
         get_ip_address $instance_id $region
-    elif [ "$command" = "status" ]; then
-        show_instance_status $instance_id $region
+    elif [ "$command" = "state" ]; then
+        show_instance_state $instance_id $region
     elif [ "$command" = "info" ]; then
         show_instance_info $instance_id $region
     elif [ "$command" = "tags" ]; then
@@ -123,24 +129,6 @@ main() {
         usage
     fi
 }
-
-# ec2i start $name
-# ec2i stop  $name
-# ec2i show  $name
-
-# ec2i ip     $name
-# ec2i status $name
-# ec2i info   $name
-# ec2i tags   $name
-# ec2i tag    $name $key $value
-
-# ec2i ssh    $name
-
-# ec2i rel-from $name $path
-# ec2i rel-to   $name $path
-# ec2i rel-del  $name $path
-# ec2i pull-pwd $name
-# ec2i push-pwd $name
 
 # ================================================================
 list_instances() {
@@ -223,7 +211,7 @@ ssh_instance() {
     fi
 }
 
-show_instance_status() {
+show_instance_state() {
     instance_id="$1"
     region="$2"
     AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id | jq -r ".Reservations[0].Instances[0].State.Name"
