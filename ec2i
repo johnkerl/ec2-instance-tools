@@ -175,7 +175,7 @@ ssh_with_pem() {
 get_ip_address() {
     instance_id="$1"
     region="$2"
-    aws ec2 describe-instances --instance-ids $instance_id \
+    AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id \
         | jq -r ".Reservations[0].Instances[0].PublicIpAddress"
 }
 
