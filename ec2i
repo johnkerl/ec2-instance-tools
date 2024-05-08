@@ -2,57 +2,52 @@
 
 set -euo pipefail
 
-# TODO: parameterize username?
-# TODO: move to a dotfile
-CONFIG="$HOME/.ec2i.json"
-
-# TODO: path-dot to miller scripts
-
+# TODO: parameterize username? currently always ubuntu@
 # TODO: usage stdout and exit 0 if -h
+# TODO: $# checks
+
+CONFIG="$HOME/.ec2i.json"
 
 OURDIR=$(dirname $0)
 OURNAME=$(basename $0)
 
-# TODO: $# checks
-
 # ----------------------------------------------------------------
 usage() {
     echo "Usage: $OURNAME {command}" 1>&2
-    echo "Given a config file with mappings from nicknames/epithets to AWS EC2 parameters," 1>&2
-    echo "allows you to start, stop, ssh, etc. The config file encapsulates instance IDs" 1>&2
-    echo "and AWS regions, and manages IP address and PEM paths, etc, so you don't have to" 1>&2
-    echo "keystroke those out all the time." 1>&2
-    echo "" 1>&2
-    echo "Commands list:" 1>&2
-    echo "" 1>&2
-    echo "list             Show epithets and parameters" 1>&2
-    echo "config           Show the config file with epithet-to-parameter mappings" 1>&2
-    echo "" 1>&2
-    echo "start  {epithet} Start the named instance" 1>&2
-    echo "stop   {epithet} Stop  the named instance" 1>&2
-    echo "show   {epithet} Show config-file parameters for the named instance" 1>&2
-    echo "ssh    {epithet} SSH into the named instance (does not auto-start it)" 1>&2
-    echo "" 1>&2
-    echo "tags   {epithet} Shows EC2 tags for the named instance" 1>&2
-    echo "tag    {epithet} {key} {value} Sets an EC2 tag for the named instance" 1>&2
-    echo "" 1>&2
-    echo "ip     {epithet} Shows current IP-address assignment" 1>&2
-    echo "state  {epithet} Shows one-word EC2 state for the named instance" 1>&2
-    echo "info   {epithet} Shows full EC2 JSON info for the named instance" 1>&2
-    echo "" 1>&2
-    echo "rel-from {epithet} {path} WIP" 1>&2
-    echo "rel-to   {epithet} {path} WIP" 1>&2
-    echo "rel-del  {epithet} {path} WIP" 1>&2
-    echo "pull-pwd {epithet} {path} WIP" 1>&2
-    echo "push-pwd {epithet} {path} WIP" 1>&2
+    cat 1>&2 <<EOF
+
+Given a config file with mappings from epithets/nicknames to AWS EC2 parameters,
+allows you to start, stop, ssh, etc. The config file encapsulates instance IDs
+and AWS regions, and manages IP address and PEM paths, etc, so you don't have to
+keystroke those out all the time.
+
+Requires jq, mlr, and synctool.
+
+Commands list:
+
+$OURNAME list                 Show epithets and parameters
+$OURNAME config               Show the config file with epithet-to-parameter mappings
+
+$OURNAME start    {epithet}   Start the named instance
+$OURNAME stop     {epithet}   Stop  the named instance
+$OURNAME show     {epithet}   Show config-file parameters for the named instance
+$OURNAME ssh      {epithet}   SSH into the named instance (does not auto-start it)
+
+$OURNAME tags     {epithet}   Shows EC2 tags for the named instance
+$OURNAME tag      {epithet} {key} {value} Sets an EC2 tag for the named instance
+
+$OURNAME ip       {epithet}   Shows current IP-address assignment
+$OURNAME state    {epithet}   Shows one-word EC2 state for the named instance
+$OURNAME info     {epithet}   Shows full EC2 JSON info for the named instance
+
+$OURNAME rel-from {epithet} {path}
+$OURNAME rel-to   {epithet} {path}
+$OURNAME rel-del  {epithet} {path}
+$OURNAME pull-pwd {epithet}
+$OURNAME push-pwd {epithet}
+EOF
     exit 1
 }
-
-# ec2i rel-from $name $path
-# ec2i rel-to   $name $path
-# ec2i rel-del  $name $path
-# ec2i pull-pwd $name
-# ec2i push-pwd $name
 
 # ================================================================
 main() {
@@ -73,25 +68,14 @@ main() {
     fi
 
     if [ $# -eq 0 ]; then
-        echo "$0: need instance epithet from $CONFIG"
+        echo "$OURNAME: need instance epithet from $CONFIG"
         usage
     fi
     epithet="$1"
     shift
 
-    # TODO: mkfuncs
-
-    instance_id=$(jq -r '.instances[] | select(.epithet=="'$epithet'") | .instance_id' $CONFIG)
-    if [ "$instance_id" = "" ]; then
-        echo "$0: could not find instance_id for epithet $epithet within config $CONFIG"
-        exit 1
-    fi
-
-    region=$(jq -r '.instances[] | select(.epithet=="'$epithet'") | .region' $CONFIG)
-    if [ "$region" = "" ]; then
-        echo "$0: could not find region for epithet $epithet within config $CONFIG"
-        exit 1
-    fi
+    instance_id=$(epithet_to_instance_id $epithet)
+    region=$(epithet_to_region $epithet)
 
     if [ "$command" = "start" ]; then
         start_instance $instance_id $region
@@ -111,20 +95,22 @@ main() {
     elif [ "$command" = "tags" ]; then
         show_instance_tags $instance_id $region
     elif [ "$command" = "tag" ]; then
-        # TODO: arg-check
-        # TODO: funcify
+        if [ $# -ne 2 ]; then
+            echo "$OURNAME: need epithet, key, and value." 1>&2
+            exit 1
+        fi
         set_instance_tags $instance_id $region $key $value
 
     elif [ "$command" = "rel-from" ]; then
-        echo STUB
+        synctool_instance $instance_id $region "relfromremote" "$@"
     elif [ "$command" = "rel-to" ]; then
-        echo STUB
+        synctool_instance $instance_id $region "reltoremote" "$@"
     elif [ "$command" = "rel-del" ]; then
-        echo STUB
+        synctool_instance $instance_id $region "reldelremote" "$@"
     elif [ "$command" = "pull-pwd" ]; then
-        echo STUB
+        synctool_instance $instance_id $region "pullpwd" "$@"
     elif [ "$command" = "push-pwd" ]; then
-        echo STUB
+        synctool_instance $instance_id $region "pushpwd" "$@"
     else
         usage
     fi
@@ -142,6 +128,27 @@ show_config() {
     jq '.pems[]' $CONFIG | mlr --j2p cat
     echo
     jq '.instances[]' $CONFIG | mlr --j2p cat
+}
+
+# ----------------------------------------------------------------
+epithet_to_instance_id() {
+    epithet="$1"
+    instance_id=$(jq -r '.instances[] | select(.epithet=="'$epithet'") | .instance_id' $CONFIG)
+    if [ "$instance_id" = "" ]; then
+        echo "$OURNAME: could not find instance_id for epithet $epithet within config $CONFIG" 1>&2
+        exit 1
+    fi
+    echo $instance_id
+}
+
+epithet_to_region() {
+    epithet="$1"
+    region=$(jq -r '.instances[] | select(.epithet=="'$epithet'") | .region' $CONFIG)
+    if [ "$region" = "" ]; then
+        echo "$OURNAME: could not find region for epithet $epithet within config $CONFIG" 1>&2
+        exit 1
+    fi
+    echo $region
 }
 
 # ----------------------------------------------------------------
@@ -183,7 +190,7 @@ get_pem_file() {
     region="$1"
     pem=$(jq -r '.pems[] | select(.region=="'$region'") | .pem' $CONFIG)
     if [ "$pem" = "null" ]; then
-        echo "$0: could not find PEM for region $region within config $CONFIG"
+        echo "$OURNAME: could not find PEM for region $region within config $CONFIG"
         exit 1
     fi
     echo $pem
@@ -211,10 +218,36 @@ ssh_instance() {
     fi
 }
 
+synctool_instance() {
+    instance_id="$1"
+    region="$2"
+    op="$3"
+    shift; shift; shift
+
+    echo
+    echo "instance_id $instance_id"
+    echo "region      $region"
+
+    ip_address=$(get_ip_address $instance_id $region)
+    echo "ip_address  $ip_address"
+
+    pem_file=$(get_pem_file $region)
+    echo "pem_file    $pem_file"
+    echo
+
+    if [ "$ip_address" = "null" ]; then
+        echo "Could not find IP address for $instance_id in $region. Is it running?" 1>&2
+    else
+        synctool -i $pem_file -r ubuntu@$ip_address $op "$@"
+    fi
+}
+
+# ----------------------------------------------------------------
 show_instance_state() {
     instance_id="$1"
     region="$2"
-    AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id | jq -r ".Reservations[0].Instances[0].State.Name"
+    AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id \
+        | jq -r ".Reservations[0].Instances[0].State.Name"
 }
 
 show_instance_info() {
@@ -226,7 +259,8 @@ show_instance_info() {
 show_instance_tags() {
     instance_id="$1"
     region="$2"
-    AWS_DEFAULT_REGION=$region aws ec2 describe-tags --filters Name=resource-id,Values=$instance_id | jq .Tags | mlr --j2p cat
+    AWS_DEFAULT_REGION=$region aws ec2 describe-tags --filters Name=resource-id,Values=$instance_id \
+        | jq .Tags | mlr --j2p cat
 }
 
 set_instance_tag() {
@@ -234,9 +268,6 @@ set_instance_tag() {
     region="$2"
     name="$3"
     value="$4"
-    #  if [ $# -ne 3 ]; then
-    #    echo "Need instance ID, name, value as args" 1>&2
-    #  fi
     AWS_DEFAULT_REGION=$region aws ec2 create-tags --resources $instance_id --tags Key="$name",Value="$value"
 }
 
