@@ -99,7 +99,9 @@ main() {
             echo "$OURNAME: need epithet, key, and value." 1>&2
             exit 1
         fi
-        set_instance_tags $instance_id $region $key $value
+        key="$1"
+        value="$2"
+        set_instance_tag $instance_id $region $key $value
 
     elif [ "$command" = "rel-from" ]; then
         synctool_instance $instance_id $region "relfromremote" "$@"
@@ -121,7 +123,7 @@ list_instances() {
     regions=$(jq -r .instances[].region $CONFIG | sort -u)
     for region in $regions; do
         AWS_DEFAULT_REGION=$region aws ec2 describe-instances
-    done | mlr --j2p put -q -f $OURDIR/iis.mlr
+    done | mlr --j2p put -q -f $OURDIR/iis.mlr then sort -f State,Tags,Epithet
 }
 
 show_config() {
