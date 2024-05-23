@@ -2,7 +2,6 @@
 
 set -euo pipefail
 
-# TODO: parameterize username? currently always ubuntu@
 # TODO: usage stdout and exit 0 if -h
 # TODO: $# checks
 
@@ -76,6 +75,7 @@ main() {
 
     instance_id=$(epithet_to_instance_id $epithet)
     region=$(epithet_to_region $epithet)
+    username=$(epithet_to_username $epithet)
 
     if [ "$command" = "start" ]; then
         start_instance $instance_id $region
@@ -84,7 +84,7 @@ main() {
     elif [ "$command" = "show" ]; then
         show_instance $instance_id $region
     elif [ "$command" = "ssh" ]; then
-        ssh_instance $instance_id $region
+        ssh_instance $username $instance_id $region
 
     elif [ "$command" = "ip" ]; then
         get_ip_address $instance_id $region
@@ -104,15 +104,15 @@ main() {
         set_instance_tag $instance_id $region $key $value
 
     elif [ "$command" = "rel-from" ]; then
-        synctool_instance $instance_id $region "relfromremote" "$@"
+        synctool_instance $username $instance_id $region "relfromremote" "$@"
     elif [ "$command" = "rel-to" ]; then
-        synctool_instance $instance_id $region "reltoremote" "$@"
+        synctool_instance $username $instance_id $region "reltoremote" "$@"
     elif [ "$command" = "rel-del" ]; then
-        synctool_instance $instance_id $region "reldelremote" "$@"
+        synctool_instance $username $instance_id $region "reldelremote" "$@"
     elif [ "$command" = "pull-pwd" ]; then
-        synctool_instance $instance_id $region "pullpwd" "$@"
+        synctool_instance $username $instance_id $region "pullpwd" "$@"
     elif [ "$command" = "push-pwd" ]; then
-        synctool_instance $instance_id $region "pushpwd" "$@"
+        synctool_instance $username $instance_id $region "pushpwd" "$@"
     else
         usage
     fi
@@ -153,6 +153,16 @@ epithet_to_region() {
     echo $region
 }
 
+epithet_to_username() {
+    epithet="$1"
+    username=$(jq -r '.instances[] | select(.epithet=="'$epithet'") | .username' $CONFIG)
+    if [ "$username" = "" ]; then
+        echo "$OURNAME: could not find username for epithet $epithet within config $CONFIG" 1>&2
+        exit 1
+    fi
+    echo $username
+}
+
 # ----------------------------------------------------------------
 show_instance() {
     instance_id="$1"
@@ -176,9 +186,11 @@ stop_instance() {
 }
 
 ssh_with_pem() {
-    ip_address="$1"
+    username_and_ip_address="$1"
     pem_path="$2"
-    ssh -i $pem_path $ip_address
+    echo
+    echo ssh -i $pem_path $username_and_ip_address
+    ssh -i $pem_path $username_and_ip_address
 }
 
 get_ip_address() {
@@ -199,10 +211,12 @@ get_pem_file() {
 }
 
 ssh_instance() {
-    instance_id="$1"
-    region="$2"
+    username="$1"
+    instance_id="$2"
+    region="$3"
 
     echo
+    echo "username    $username"
     echo "instance_id $instance_id"
     echo "region      $region"
 
@@ -216,15 +230,16 @@ ssh_instance() {
     if [ "$ip_address" = "null" ]; then
         echo "Could not find IP address for $instance_id in $region. Is it running?"
     else
-        ssh_with_pem ubuntu@$ip_address $pem_file
+        ssh_with_pem $username@$ip_address $pem_file
     fi
 }
 
 synctool_instance() {
-    instance_id="$1"
-    region="$2"
-    op="$3"
-    shift; shift; shift
+    username="$1"
+    instance_id="$2"
+    region="$3"
+    op="$4"
+    shift; shift; shift; shift
 
     echo
     echo "instance_id $instance_id"
@@ -240,7 +255,7 @@ synctool_instance() {
     if [ "$ip_address" = "null" ]; then
         echo "Could not find IP address for $instance_id in $region. Is it running?" 1>&2
     else
-        synctool -i $pem_file -r ubuntu@$ip_address $op "$@"
+        synctool -i $pem_file -r $username@$ip_address $op "$@"
     fi
 }
 
