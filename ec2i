@@ -444,6 +444,9 @@ start_wait_ssh_instance() {
             fi
             state=$(show_instance_state $instance_id $region)
             echo "state       $state"
+            if [ "$state" = "running" ]; then
+                break
+            fi
         done
     fi
 
