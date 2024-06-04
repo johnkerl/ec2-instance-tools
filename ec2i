@@ -3,7 +3,6 @@
 set -euo pipefail
 
 # TODO: usage stdout and exit 0 if -h
-# TODO: $# checks
 
 CONFIG="$HOME/.ec2i.json"
 
@@ -45,20 +44,20 @@ Commands list:
 $OURNAME list                 Show epithets and parameters
 $OURNAME config               Show the config file with epithet-to-parameter mappings
 
-$OURNAME start    {epithet}   Start the named instance
-$OURNAME stop     {epithet}   Stop  the named instance
-$OURNAME show     {epithet}   Show config-file parameters for the named instance
+$OURNAME start    {epithets}  Start the named instance(s)
+$OURNAME stop     {epithets}  Stop  the named instance(s)
+$OURNAME show     {epithets}  Show config-file parameters for the named instance(s)
 $OURNAME ssh      {epithet}   SSH into the named instance (does not auto-start it)
 
 $OURNAME sshup    {epithet}   SSH into the named instance with auto-start and wait for ready
 
-$OURNAME tags     {epithet}   Shows EC2 tags for the named instance
+$OURNAME tags     {epithets}  Shows EC2 tags for the named instance(s)
 $OURNAME tag      {epithet} {key} {value} Sets an EC2 tag for the named instance
 $OURNAME untag    {epithet} {key}         Clears an EC2 tag for the named instance
 
-$OURNAME ip       {epithet}   Shows current IP-address assignment
-$OURNAME state    {epithet}   Shows one-word EC2 state for the named instance
-$OURNAME info     {epithet}   Shows full EC2 JSON info for the named instance
+$OURNAME ip       {epithets}  Shows current IP-address assignment for the named instance(s)
+$OURNAME state    {epithets}  Shows one-word EC2 state for the named instance(s)
+$OURNAME info     {epithets}  Shows full EC2 JSON info for the named instance(s)
 
 $OURNAME rel-from {epithet} {path}
 $OURNAME rel-to   {epithet} {path}
@@ -77,7 +76,7 @@ main() {
     command="$1"
     shift
 
-    # No instance name required
+    # No instance epithet required
     if   [ "$command" = "list" ]; then
         list_instances
         exit 0
@@ -87,68 +86,166 @@ main() {
         exit 0
     fi
 
-    if [ $# -eq 0 ]; then
-        echo "$OURNAME: need instance epithet from $CONFIG"
+    if [ "$command" = "start" ]; then
+        loop_over_epithets $command start_instance "$@"
+
+    elif [ "$command" = "stop" ]; then
+        loop_over_epithets $command stop_instance "$@"
+
+    elif [ "$command" = "show" ]; then
+        loop_over_epithets $command show_instance "$@"
+
+    elif [ "$command" = "ssh" ]; then
+        check_argc_equals $command $# 1 "one epithet from $CONFIG"
+        epithet="$1"
+
+        instance_id=$(epithet_to_instance_id $epithet)
+        region=$(epithet_to_region $epithet)
+        username=$(epithet_to_username $epithet)
+
+        ssh_instance $username $instance_id $region
+
+    elif [ "$command" = "sshup" ]; then
+        check_argc_equals $command $# 1 "one epithet from $CONFIG"
+        epithet="$1"
+
+        instance_id=$(epithet_to_instance_id $epithet)
+        region=$(epithet_to_region $epithet)
+        username=$(epithet_to_username $epithet)
+
+        start_wait_ssh_instance $username $instance_id $region
+
+    elif [ "$command" = "ip" ]; then
+        loop_over_epithets $command get_ip_address "$@"
+
+    elif [ "$command" = "state" ]; then
+        loop_over_epithets $command show_instance_state "$@"
+
+    elif [ "$command" = "info" ]; then
+        loop_over_epithets $command show_instance_info "$@"
+
+    elif [ "$command" = "tags" ]; then
+        loop_over_epithets $command show_instance_tags "$@"
+
+    elif [ "$command" = "tag" ]; then
+        check_argc_equals $command $# 3 "epithet, key, and value"
+        epithet="$1"
+        key="$2"
+        value="$3"
+
+        instance_id=$(epithet_to_instance_id $epithet)
+        region=$(epithet_to_region $epithet)
+        username=$(epithet_to_username $epithet)
+
+        set_instance_tag $instance_id $region $key $value
+
+    elif [ "$command" = "untag" ]; then
+        check_argc_equals $command $# 2 "epithet and key"
+        epithet="$1"
+        key="$2"
+
+        instance_id=$(epithet_to_instance_id $epithet)
+        region=$(epithet_to_region $epithet)
+        username=$(epithet_to_username $epithet)
+
+        unset_instance_tag $instance_id $region $key
+
+    elif [ "$command" = "rel-from" ]; then
+        check_argc_at_least $command $# 2 "epithet and one or more paths"
+        epithet=$1; shift
+        loop_over_paths "rel-from" "relfromremote" $epithet "$@"
+
+    elif [ "$command" = "rel-to" ]; then
+        check_argc_at_least $command $# 2 "epithet and one or more paths"
+        epithet=$1; shift
+        loop_over_paths $command "reltoremote" $epithet "$@"
+
+    elif [ "$command" = "rel-del" ]; then
+        check_argc_at_least $command $# 2 "epithet and one or more paths"
+        epithet=$1; shift
+        loop_over_paths $command "reldelremote" $epithet "$@"
+
+    elif [ "$command" = "pull-pwd" ]; then
+        check_argc_at_least $command $# 2 "epithet and one or more paths"
+        epithet=$1; shift
+        loop_over_paths $command "pullpwd" $epithet "$@"
+
+    elif [ "$command" = "push-pwd" ]; then
+        check_argc_at_least $command $# 2 "epithet and one or more paths"
+        epithet=$1; shift
+        loop_over_paths $command "pushpwd" $epithet "$@"
+
+    else
         usage
     fi
-    epithet="$1"
-    shift
+}
+
+# ----------------------------------------------------------------
+check_argc_equals() {
+    command="$1"
+    actual_argc="$2"
+    expected_argc="$3"
+    needed="$4"
+
+    if [ $actual_argc -ne $expected_argc ]; then
+        echo "$OURNAME $command: need $needed." 1>&2
+        exit 1
+    fi
+}
+
+check_argc_at_least() {
+    command="$1"
+    actual_argc="$2"
+    expected_argc="$3"
+    needed="$4"
+
+    if [ $actual_argc -lt $expected_argc ]; then
+        echo "$OURNAME $command: need $needed." 1>&2
+        exit 1
+    fi
+}
+
+loop_over_epithets() {
+    user_facing_command="$1"
+    function_name="$2"
+    shift; shift
+    epithets="$@"
+
+    if [ $# -lt 1 ]; then
+        echo "$OURNAME $user_facing_command: need at least one instance epithet from $CONFIG." 1>&2
+        exit 1
+    fi
+    i=0
+    for epithet; do
+        # Put a blank line between outputs for multiple instances
+        if [ $# -gt 1 -a $i -gt 0 ]; then
+            echo
+        fi
+        i=$[i+1]
+
+        instance_id=$(epithet_to_instance_id $epithet)
+        region=$(epithet_to_region $epithet)
+        username=$(epithet_to_username $epithet)
+        $function_name $instance_id $region
+    done
+}
+
+loop_over_paths() {
+    user_facing_command="$1"
+    synctool_function_name="$2"
+    epithet="$3"
+    shift; shift; shift
+
+    if [ $# -lt 1 ]; then
+        echo "$OURNAME $user_facing_command: need at least one path." 1>&2
+        exit 1
+    fi
 
     instance_id=$(epithet_to_instance_id $epithet)
     region=$(epithet_to_region $epithet)
     username=$(epithet_to_username $epithet)
 
-    if [ "$command" = "start" ]; then
-        start_instance $instance_id $region
-    elif [ "$command" = "stop" ]; then
-        stop_instance $instance_id $region
-    elif [ "$command" = "show" ]; then
-        show_instance $instance_id $region
-    elif [ "$command" = "ssh" ]; then
-        ssh_instance $username $instance_id $region
-
-    elif [ "$command" = "sshup" ]; then
-        start_wait_ssh_instance $username $instance_id $region
-
-    elif [ "$command" = "ip" ]; then
-        get_ip_address $instance_id $region
-    elif [ "$command" = "state" ]; then
-        show_instance_state $instance_id $region
-    elif [ "$command" = "info" ]; then
-        show_instance_info $instance_id $region
-    elif [ "$command" = "tags" ]; then
-        show_instance_tags $instance_id $region
-
-    elif [ "$command" = "tag" ]; then
-        if [ $# -ne 2 ]; then
-            echo "$OURNAME: need epithet, key, and value." 1>&2
-            exit 1
-        fi
-        key="$1"
-        value="$2"
-        set_instance_tag $instance_id $region $key $value
-
-    elif [ "$command" = "untag" ]; then
-        if [ $# -ne 1 ]; then
-            echo "$OURNAME: need epithet and key." 1>&2
-            exit 1
-        fi
-        key="$1"
-        unset_instance_tag $instance_id $region $key
-
-    elif [ "$command" = "rel-from" ]; then
-        synctool_instance $username $instance_id $region "relfromremote" "$@"
-    elif [ "$command" = "rel-to" ]; then
-        synctool_instance $username $instance_id $region "reltoremote" "$@"
-    elif [ "$command" = "rel-del" ]; then
-        synctool_instance $username $instance_id $region "reldelremote" "$@"
-    elif [ "$command" = "pull-pwd" ]; then
-        synctool_instance $username $instance_id $region "pullpwd" "$@"
-    elif [ "$command" = "push-pwd" ]; then
-        synctool_instance $username $instance_id $region "pushpwd" "$@"
-    else
-        usage
-    fi
+    synctool_instance $username $instance_id $region $synctool_function_name "$@"
 }
 
 # ================================================================
