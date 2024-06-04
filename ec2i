@@ -32,6 +32,8 @@ $OURNAME stop     {epithet}   Stop  the named instance
 $OURNAME show     {epithet}   Show config-file parameters for the named instance
 $OURNAME ssh      {epithet}   SSH into the named instance (does not auto-start it)
 
+$OURNAME sshup    {epithet}   SSH into the named instance with auto-start and wait for ready
+
 $OURNAME tags     {epithet}   Shows EC2 tags for the named instance
 $OURNAME tag      {epithet} {key} {value} Sets an EC2 tag for the named instance
 
@@ -85,6 +87,9 @@ main() {
         show_instance $instance_id $region
     elif [ "$command" = "ssh" ]; then
         ssh_instance $username $instance_id $region
+
+    elif [ "$command" = "sshup" ]; then
+        start_wait_ssh_instance $username $instance_id $region
 
     elif [ "$command" = "ip" ]; then
         get_ip_address $instance_id $region
@@ -232,6 +237,37 @@ ssh_instance() {
     else
         ssh_with_pem $username@$ip_address $pem_file
     fi
+}
+
+start_wait_ssh_instance() {
+    username="$1"
+    instance_id="$2"
+    region="$3"
+
+    state=$(show_instance_state $instance_id $region)
+
+    echo
+    echo "username    $username"
+    echo "instance_id $instance_id"
+    echo "region      $region"
+    echo "state       $state"
+
+    if [ "$state" != "running" ]; then
+        start_instance $instance_id $region
+        n=1
+        while true; do
+            sleep 1
+            n=$[n+1]
+            if [ $n -gt 20 ]; then
+                echo "$0: giving up on ssh to $instance_id in $region"
+                exit 1
+            fi
+            state=$(show_instance_state $instance_id $region)
+            echo "state       $state"
+        done
+    fi
+
+    ssh_instance $username $instance_id $region
 }
 
 synctool_instance() {
