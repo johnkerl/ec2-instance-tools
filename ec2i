@@ -20,7 +20,25 @@ allows you to start, stop, ssh, etc. The config file encapsulates instance IDs
 and AWS regions, and manages IP address and PEM paths, etc, so you don't have to
 keystroke those out all the time.
 
-Requires jq, mlr, and synctool.
+Requires:
+
+* jq for all processing
+* mlr for instance-listing
+* github.com/johnkerl/synctool for file transfers
+
+Sample ~/.ec2i.json:
+
+    {
+      "pems": [ { "region": "us-east-1", "pem": "/path/to/my.pem" } ],
+      "instances": [
+        {
+          "epithet": "ephemeron",
+          "username": "ubuntu",
+          "instance_id": "i-0cafefeedcafef00d",
+          "region": "us-east-1",
+          "description": "This is used for Project 827"
+        }
+    }
 
 Commands list:
 
@@ -36,6 +54,7 @@ $OURNAME sshup    {epithet}   SSH into the named instance with auto-start and wa
 
 $OURNAME tags     {epithet}   Shows EC2 tags for the named instance
 $OURNAME tag      {epithet} {key} {value} Sets an EC2 tag for the named instance
+$OURNAME untag    {epithet} {key}         Clears an EC2 tag for the named instance
 
 $OURNAME ip       {epithet}   Shows current IP-address assignment
 $OURNAME state    {epithet}   Shows one-word EC2 state for the named instance
@@ -99,6 +118,7 @@ main() {
         show_instance_info $instance_id $region
     elif [ "$command" = "tags" ]; then
         show_instance_tags $instance_id $region
+
     elif [ "$command" = "tag" ]; then
         if [ $# -ne 2 ]; then
             echo "$OURNAME: need epithet, key, and value." 1>&2
@@ -107,6 +127,14 @@ main() {
         key="$1"
         value="$2"
         set_instance_tag $instance_id $region $key $value
+
+    elif [ "$command" = "untag" ]; then
+        if [ $# -ne 1 ]; then
+            echo "$OURNAME: need epithet and key." 1>&2
+            exit 1
+        fi
+        key="$1"
+        unset_instance_tag $instance_id $region $key
 
     elif [ "$command" = "rel-from" ]; then
         synctool_instance $username $instance_id $region "relfromremote" "$@"
@@ -377,6 +405,13 @@ set_instance_tag() {
     name="$3"
     value="$4"
     AWS_DEFAULT_REGION=$region aws ec2 create-tags --resources $instance_id --tags Key="$name",Value="$value"
+}
+
+unset_instance_tag() {
+    instance_id="$1"
+    region="$2"
+    name="$3"
+    AWS_DEFAULT_REGION=$region aws ec2 delete-tags --resources $instance_id --tags Key="$name"
 }
 
 # ================================================================
