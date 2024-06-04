@@ -128,7 +128,62 @@ list_instances() {
     regions=$(jq -r .instances[].region $CONFIG | sort -u)
     for region in $regions; do
         AWS_DEFAULT_REGION=$region aws ec2 describe-instances
-    done | mlr --j2p put -q -f $OURDIR/iis.mlr then sort -f State,Tags,Epithet
+    done | mlr --j2p put -q '
+
+        for (reservation in $Reservations) {
+            for (instance in reservation["Instances"]) {
+                KeyName = instance["KeyName"];
+                if (haskey(instance, "KeyName") && index(KeyName, "kerl") >= 0) {
+                    tags = instance["Tags"];
+
+                    # [
+                    #   {
+                    #     "Key": "Name",
+                    #     "Value": "kerl-tiny"
+                    #   },
+                    #   {
+                    #     "Key": "Epithet",
+                    #     "Value": "dwergaz"
+                    #   }
+                    # ]
+
+                    tags = sort(tags, func(a,b) { return a["Key"] <=> b["Key"]});
+
+                    epithet = "";
+                    for (tag in tags) {
+                          if (tag["Key"] == "Epithet") {
+                          epithet = tag["Value"];
+                          break;
+                      }
+                    }
+
+                    name = "";
+                    for (tag in tags) {
+                          if (tag["Key"] == "Name") {
+                          name = tag["Value"];
+                          break;
+                      }
+                    }
+
+                    tags = select(tags, func(e) { return e["Key"] != "Epithet" && e["Key"] != "Name"});
+
+                    tag_values = apply(sort(tags), func(e) { return e["Value"] });
+
+                    out = {
+                        "Epithet":  epithet,
+                        "Tags":  joinv(tag_values, ","),
+                        "KeyName": KeyName,
+                        "Name":  name,
+                        "InstanceId": instance["InstanceId"],
+                        "InstanceType": instance["InstanceType"],
+                        "State":  instance["State"]["Name"],
+                    };
+                    emit out;
+                }
+            }
+        }
+
+    ' then sort -f State,Tags,Epithet
 }
 
 show_config() {
