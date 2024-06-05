@@ -166,12 +166,12 @@ main() {
         loop_over_paths $command "reldelremote" $epithet "$@"
 
     elif [ "$command" = "pull-pwd" ]; then
-        check_argc_at_least $command $# 2 "epithet and one or more paths"
+        check_argc_at_least $command $# 1 "epithet and no paths"
         epithet=$1; shift
         loop_over_paths $command "pullpwd" $epithet "$@"
 
     elif [ "$command" = "push-pwd" ]; then
-        check_argc_at_least $command $# 2 "epithet and one or more paths"
+        check_argc_at_least $command $# 1 "epithet and no paths"
         epithet=$1; shift
         loop_over_paths $command "pushpwd" $epithet "$@"
 
@@ -235,11 +235,6 @@ loop_over_paths() {
     synctool_function_name="$2"
     epithet="$3"
     shift; shift; shift
-
-    if [ $# -lt 1 ]; then
-        echo "$OURNAME $user_facing_command: need at least one path." 1>&2
-        exit 1
-    fi
 
     instance_id=$(epithet_to_instance_id $epithet)
     region=$(epithet_to_region $epithet)
