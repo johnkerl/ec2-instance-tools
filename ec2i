@@ -428,13 +428,15 @@ start_wait_ssh_instance() {
     echo "state       $state"
 
     if [ "$state" != "running" ]; then
+
+        # Wait for EC2 spin-up
         start_instance $instance_id $region
         n=1
         while true; do
             sleep 1
             n=$[n+1]
             if [ $n -gt 20 ]; then
-                echo "$0: giving up on ssh to $instance_id in $region"
+                echo "$0: giving up on start of $instance_id in $region"
                 exit 1
             fi
             state=$(show_instance_state $instance_id $region)
@@ -443,9 +445,31 @@ start_wait_ssh_instance() {
                 break
             fi
         done
-    fi
 
-    ssh_instance $username $instance_id $region
+        pem_file=$(get_pem_file $region)
+        echo "pem_file    $pem_file"
+        echo
+
+        # Wait for sshd etc.
+        while true; do
+            sleep 1
+            n=$[n+1]
+            if [ $n -gt 10 ]; then
+                echo "$0: giving up on ssh to $instance_id in $region"
+                exit 1
+            fi
+            echo ssh -i $pem_path $username_and_ip_address
+            ssh -i $pem_path $username_and_ip_address
+            status=$?
+            if [ $status -eq 0 ]; then
+              break
+            fi
+            echo "Awaiting ssh ..."
+        done
+
+    else
+        ssh_instance $username $instance_id $region
+    fi
 }
 
 synctool_instance() {
