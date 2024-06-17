@@ -458,7 +458,7 @@ start_wait_ssh_instance() {
                 echo "$0: giving up on ssh to $instance_id in $region"
                 exit 1
             fi
-            echo ssh -i $pem_path $username_and_ip_address
+            echo ssh -i $pem_file $username_and_ip_address
             ssh -i $pem_path $username_and_ip_address
             status=$?
             if [ $status -eq 0 ]; then
