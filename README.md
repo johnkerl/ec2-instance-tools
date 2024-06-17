@@ -1,5 +1,4 @@
 # ec2-instance-tools
-
 Some simple keystroke-saver tooling for start/stop/ssh of EC2 instances.
 
 * You can list, start, ssh, and stop using only a handy nickname, or "epithet"
@@ -8,6 +7,7 @@ Some simple keystroke-saver tooling for start/stop/ssh of EC2 instances.
 
 # Requirements
 
+* The `aws` CLI for all processing
 * [jq](https://github.com/jqlang/jq) for all processing
 * [miller](https://miller.readthedocs.io/en/latest/) for instance-listing
 * [github.com/johnkerl/synctool](https://github.com/johnkerl/synctool) for file transfers
@@ -114,14 +114,17 @@ $ ec2i start wihti
 
 $ ec2i ssh wihti
 
-username    ubuntu
-instance_id i-[redacted]
-region      us-east-1
-ip_address  23.22.6.197
-pem_file    /path/to/my.pem
+                                              +-------------------------------------------------------------+
+                                          <-- | Note: this is printed out by the ec2i tool                  |
+username    ubuntu                            | * Username is from your config file                         |
+instance_id i-[redacted]                      | * Instance ID is from your confg file                       |
+region      us-east-1                         | * Region is from your config file                           |
+ip_address  23.22.6.197                       | * ec2i looks this up dynamically, delegating to the AWS CLI |
+pem_file    /path/to/my.pem                   | * PEM-file name is from your config file                    |
+                                              |                                                             |
+ssh -i /path/to/my.pem ubuntu@10.20.30.40 <-- | The ec2i tool constructs this for you, and prints it        |
+                                              +-------------------------------------------------------------+
 
-
-ssh -i /path/to/my.pem ubuntu@10.20.30.40
 Welcome to Ubuntu 22.04.4 LTS (GNU/Linux 6.5.0-1020-aws x86_64)
 ...
 
