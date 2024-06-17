@@ -1,9 +1,13 @@
 # ec2-instance-tools
+
 Some simple keystroke-saver tooling for start/stop/ssh of EC2 instances.
 
 * You can list, start, ssh, and stop using only a handy nickname, or "epithet"
 * All the pem-file-name details, username, etc are stashed in a handy config file
 * The EC2 IP addresses, which change on every EC2 restart, are dynamically looked up for you
+* You can also set/clear instance tags
+
+In principle, instance creation (and termination!) could be scripted as well. I prefer to create instances using the AWS UI, then use this script for day-in/day-out start/ssh/stop etc.
 
 # Requirements
 
