@@ -367,10 +367,10 @@ stop_instance() {
 
 ssh_with_pem() {
     username_and_ip_address="$1"
-    pem_path="$2"
+    pem_file="$2"
     echo
-    echo ssh -i $pem_path $username_and_ip_address
-    ssh -i $pem_path $username_and_ip_address
+    echo ssh -i $pem_file $username_and_ip_address
+    ssh -i $pem_file $username_and_ip_address
 }
 
 get_ip_address() {
@@ -458,8 +458,15 @@ start_wait_ssh_instance() {
                 echo "$0: giving up on ssh to $instance_id in $region"
                 exit 1
             fi
-            echo ssh -i $pem_file $username_and_ip_address
-            ssh -i $pem_path $username_and_ip_address
+
+            ip_address=$(get_ip_address $instance_id $region)
+            if [ "$ip_address" = "null" ]; then
+                echo "Could not find IP address for $instance_id in $region. Is it running?"
+                continue
+            fi
+
+            echo ssh -i $pem_file $username@$ip_address
+            ssh -i $pem_file $username@$ip_address
             status=$?
             if [ $status -eq 0 ]; then
               break
