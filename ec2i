@@ -427,6 +427,10 @@ start_wait_ssh_instance() {
     echo "region      $region"
     echo "state       $state"
 
+    pem_file=$(get_pem_file $region)
+    echo "pem_file    $pem_file"
+    echo
+
     if [ "$state" != "running" ]; then
 
         # Wait for EC2 spin-up
@@ -435,7 +439,7 @@ start_wait_ssh_instance() {
         while true; do
             sleep 1
             n=$[n+1]
-            if [ $n -gt 20 ]; then
+            if [ $n -gt 30 ]; then
                 echo "$0: giving up on start of $instance_id in $region"
                 exit 1
             fi
@@ -445,38 +449,41 @@ start_wait_ssh_instance() {
                 break
             fi
         done
-
-        pem_file=$(get_pem_file $region)
-        echo "pem_file    $pem_file"
-        echo
-
-        # Wait for sshd etc.
-        while true; do
-            sleep 1
-            n=$[n+1]
-            if [ $n -gt 10 ]; then
-                echo "$0: giving up on ssh to $instance_id in $region"
-                exit 1
-            fi
-
-            ip_address=$(get_ip_address $instance_id $region)
-            if [ "$ip_address" = "null" ]; then
-                echo "Could not find IP address for $instance_id in $region. Is it running?"
-                continue
-            fi
-
-            echo ssh -i $pem_file $username@$ip_address
-            ssh -i $pem_file $username@$ip_address
-            status=$?
-            if [ $status -eq 0 ]; then
-              break
-            fi
-            echo "Awaiting ssh ..."
-        done
-
-    else
-        ssh_instance $username $instance_id $region
     fi
+
+    # Wait for sshd etc.
+    n=1
+    while true; do
+        sleep 1
+        n=$[n+1]
+        if [ $n -gt 20 ]; then
+            echo "$0: giving up on ssh to $instance_id in $region"
+            exit 1
+        fi
+
+        ip_address=$(get_ip_address $instance_id $region)
+        if [ "$ip_address" = "null" ]; then
+            echo "Could not find IP address for $instance_id in $region. Is it running?"
+            continue
+        fi
+
+        t1=$(date +%s)
+        echo "timestamp   $t1"
+
+        echo ssh -i $pem_file $username@$ip_address
+        ssh -i $pem_file $username@$ip_address
+        status=$?
+        echo "ssh status  $status"
+
+        t2=$(date +%s)
+        echo "timestamp   $t2"
+        echo "ssh seconds $[t2-t1]"
+
+        if [ $status -eq 0 ]; then
+          break
+        fi
+        echo "Awaiting ssh ..."
+    done
 }
 
 synctool_instance() {
