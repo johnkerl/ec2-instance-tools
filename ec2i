@@ -2,14 +2,16 @@
 
 set -euo pipefail
 
-# TODO: usage stdout and exit 0 if -h
-
 CONFIG="$HOME/.ec2i.json"
+if [ -f $HOME/.ec2i-env ]; then
+  . $HOME/.ec2i-env
+fi
 
 OURDIR=$(dirname $0)
 OURNAME=$(basename $0)
 
 # ----------------------------------------------------------------
+# TODO: usage stdout and exit 0 if -h
 usage() {
     echo "Usage: $OURNAME {command}" 1>&2
     cat 1>&2 <<EOF
