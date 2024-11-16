@@ -70,6 +70,21 @@ EOF
     exit 1
 }
 
+# ----------------------------------------------------------------
+title() {
+  text="$@"
+
+  if [ "$(uname)" = "Darwin" ]; then
+    starttitle=$'\033]0;'
+    endtitle=$'\007'
+  else
+    starttitle="\e]2;"
+    endtitle="\a"
+  fi
+
+  echo -e $starttitle $text $endtitle
+}
+
 # ================================================================
 main() {
     if [ $# -eq 0 ];then
@@ -105,6 +120,7 @@ main() {
         region=$(epithet_to_region $epithet)
         username=$(epithet_to_username $epithet)
 
+        title $epithet
         ssh_instance $username $instance_id $region
 
     elif [ "$command" = "sshup" ]; then
@@ -115,6 +131,7 @@ main() {
         region=$(epithet_to_region $epithet)
         username=$(epithet_to_username $epithet)
 
+        title $epithet
         start_wait_ssh_instance $username $instance_id $region
 
     elif [ "$command" = "ip" ]; then
