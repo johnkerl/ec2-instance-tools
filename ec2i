@@ -3,9 +3,9 @@
 set -euo pipefail
 
 CONFIG="$HOME/.ec2i.json"
-if [ -f $HOME/.ec2i-env ]; then
-  . $HOME/.ec2i-env
-fi
+#if [ -f $HOME/.ec2i-env ]; then
+#  . $HOME/.ec2i-env
+#fi
 
 OURDIR=$(dirname $0)
 OURNAME=$(basename $0)
