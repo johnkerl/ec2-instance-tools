@@ -266,7 +266,7 @@ loop_over_paths() {
 list_instances() {
     regions=$(jq -r .instances[].region $CONFIG | sort -u)
     for region in $regions; do
-        AWS_DEFAULT_REGION=$region aws ec2 describe-instances
+        AWS_REGION=$region AWS_DEFAULT_REGION=$region aws ec2 describe-instances
     done | mlr --j2p put -q '
 
         for (reservation in $Reservations) {
@@ -366,7 +366,7 @@ epithet_to_username() {
 show_instance() {
     instance_id="$1"
     region="$2"
-    AWS_DEFAULT_REGION=$region \
+    AWS_REGION=$region AWS_DEFAULT_REGION=$region \
         aws ec2 describe-instances --query "Reservations[0].Instances[0]" --instance-ids $instance_id \
             | mlr --ijson --oxtab \
               cut -o -f KeyName,InstanceType,InstanceId,Architecture,LaunchTime,Placement.AvailabilityZone,State
@@ -375,13 +375,13 @@ show_instance() {
 start_instance() {
     instance_id="$1"
     region="$2"
-    AWS_DEFAULT_REGION=$region aws ec2 start-instances --instance-ids $instance_id
+    AWS_REGION=$region AWS_DEFAULT_REGION=$region aws ec2 start-instances --instance-ids $instance_id
 }
 
 stop_instance() {
     instance_id="$1"
     region="$2"
-    AWS_DEFAULT_REGION=$region aws ec2 stop-instances --instance-ids $instance_id
+    AWS_REGION=$region AWS_DEFAULT_REGION=$region aws ec2 stop-instances --instance-ids $instance_id
 }
 
 ssh_with_pem() {
@@ -395,7 +395,7 @@ ssh_with_pem() {
 get_ip_address() {
     instance_id="$1"
     region="$2"
-    AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id \
+    AWS_REGION=$region AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id \
         | jq -r ".Reservations[0].Instances[0].PublicIpAddress"
 }
 
@@ -534,20 +534,20 @@ synctool_instance() {
 show_instance_state() {
     instance_id="$1"
     region="$2"
-    AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id \
+    AWS_REGION=$region AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id \
         | jq -r ".Reservations[0].Instances[0].State.Name"
 }
 
 show_instance_info() {
     instance_id="$1"
     region="$2"
-    AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id | jq .
+    AWS_REGION=$region AWS_DEFAULT_REGION=$region aws ec2 describe-instances --instance-ids $instance_id | jq .
 }
 
 show_instance_tags() {
     instance_id="$1"
     region="$2"
-    AWS_DEFAULT_REGION=$region aws ec2 describe-tags --filters Name=resource-id,Values=$instance_id \
+    AWS_REGION=$region AWS_DEFAULT_REGION=$region aws ec2 describe-tags --filters Name=resource-id,Values=$instance_id \
         | jq .Tags | mlr --j2p cat
 }
 
@@ -556,14 +556,14 @@ set_instance_tag() {
     region="$2"
     name="$3"
     value="$4"
-    AWS_DEFAULT_REGION=$region aws ec2 create-tags --resources $instance_id --tags Key="$name",Value="$value"
+    AWS_REGION=$region AWS_DEFAULT_REGION=$region aws ec2 create-tags --resources $instance_id --tags Key="$name",Value="$value"
 }
 
 unset_instance_tag() {
     instance_id="$1"
     region="$2"
     name="$3"
-    AWS_DEFAULT_REGION=$region aws ec2 delete-tags --resources $instance_id --tags Key="$name"
+    AWS_REGION=$region AWS_DEFAULT_REGION=$region aws ec2 delete-tags --resources $instance_id --tags Key="$name"
 }
 
 # ================================================================
