@@ -324,6 +324,7 @@ list_instances() {
                         }
                     }
 
+                    out["State"]        = instance["State"]["Name"];
                     out["Epithet"] = epithet;
                     out["Name"] = name;
                     out["Core"] = core;
@@ -335,14 +336,13 @@ list_instances() {
 
                     out["InstanceId"]   = instance["InstanceId"];
                     out["InstanceType"] = instance["InstanceType"];
-                    out["State"]        = instance["State"]["Name"];
 
                     emit out;
                 }
             }
         }
 
-    ' then sort -n PPH,Epithet
+    ' then sort -n State,PPH,Epithet
 }
 
 show_config() {
