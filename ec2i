@@ -287,42 +287,62 @@ list_instances() {
                     # ]
 
                     tags = sort(tags, func(a,b) { return a["Key"] <=> b["Key"]});
+                    # tags = select(tags, func(e) { return e["Key"] != "Epithet" && e["Key"] != "Name"});
+                    # tag_values = apply(sort(tags), func(e) { return e["Value"] });
 
-                    epithet = "";
+                    out = {};
+                    # out["KeyName"] = KeyName;
+
+                    epithet = "???";
+                    name = "???";
+                    core = "";
+                    python = "";
+                    arch = "";
+                    cpu = "";
+                    ram = "";
+                    pph = "";
+
                     for (tag in tags) {
-                          if (tag["Key"] == "Epithet") {
-                          epithet = tag["Value"];
-                          break;
-                      }
+                        if (tag["Key"] == "Epithet") {
+                            epithet = tag["Value"];
+                        } elif (tag["Key"] == "Name") {
+                            name = tag["Value"];
+
+                        } elif (tag["Key"] == "Core") {
+                            core = tag["Value"];
+                        } elif (tag["Key"] == "Python") {
+                            python = tag["Value"];
+
+                        } elif (tag["Key"] == "arch") {
+                            arch = tag["Value"];
+                        } elif (tag["Key"] == "cpu") {
+                            cpu = int(tag["Value"]);
+                        } elif (tag["Key"] == "ram") {
+                            ram = int(tag["Value"]);
+                        } elif (tag["Key"] == "pph") {
+                            pph = int(tag["Value"]);
+                        }
                     }
 
-                    name = "";
-                    for (tag in tags) {
-                          if (tag["Key"] == "Name") {
-                          name = tag["Value"];
-                          break;
-                      }
-                    }
+                    out["Epithet"] = epithet;
+                    out["Name"] = name;
+                    out["Core"] = core;
+                    out["Python"] = python;
+                    out["Arch"] = arch;
+                    out["CPU"] = cpu;
+                    out["RAM"] = ram;
+                    out["PPH"] = pph;
 
-                    tags = select(tags, func(e) { return e["Key"] != "Epithet" && e["Key"] != "Name"});
+                    out["InstanceId"]   = instance["InstanceId"];
+                    out["InstanceType"] = instance["InstanceType"];
+                    out["State"]        = instance["State"]["Name"];
 
-                    tag_values = apply(sort(tags), func(e) { return e["Value"] });
-
-                    out = {
-                        "Epithet":  epithet,
-                        "Tags":  joinv(tag_values, ","),
-                        "KeyName": KeyName,
-                        "Name":  name,
-                        "InstanceId": instance["InstanceId"],
-                        "InstanceType": instance["InstanceType"],
-                        "State":  instance["State"]["Name"],
-                    };
                     emit out;
                 }
             }
         }
 
-    ' then sort -f State,Tags,Epithet
+    ' then sort -n PPH,Epithet
 }
 
 show_config() {
