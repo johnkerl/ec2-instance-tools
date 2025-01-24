@@ -297,6 +297,7 @@ list_instances() {
                     name = "???";
                     core = "";
                     python = "";
+                    os = "";
                     arch = "";
                     cpu = "";
                     ram = "";
@@ -313,6 +314,8 @@ list_instances() {
                         } elif (tag["Key"] == "Python") {
                             python = tag["Value"];
 
+                        } elif (tag["Key"] == "os") {
+                            os = tag["Value"];
                         } elif (tag["Key"] == "arch") {
                             arch = tag["Value"];
                         } elif (tag["Key"] == "cpu") {
@@ -324,15 +327,16 @@ list_instances() {
                         }
                     }
 
-                    out["State"]        = instance["State"]["Name"];
+                    out["State"]   = instance["State"]["Name"];
                     out["Epithet"] = epithet;
-                    out["Name"] = name;
-                    out["Core"] = core;
-                    out["Python"] = python;
-                    out["Arch"] = arch;
-                    out["CPU"] = cpu;
-                    out["RAM"] = ram;
-                    out["PPH"] = pph;
+                    out["Name"]    = name;
+                    out["Core"]    = core;
+                    out["Python"]  = python;
+                    out["OS"]      = os;
+                    out["Arch"]    = arch;
+                    out["CPU"]     = cpu;
+                    out["RAM"]     = ram;
+                    out["PPH"]     = pph;
 
                     out["InstanceId"]   = instance["InstanceId"];
                     out["InstanceType"] = instance["InstanceType"];
