@@ -510,6 +510,10 @@ start_wait_ssh_instance() {
             continue
         fi
 
+        # Empirically I need juuuust a bit more wait before logging in
+        echo "final patience ..."
+        sleep 5
+
         t1=$(date +%s)
         echo "timestamp   $t1"
 
