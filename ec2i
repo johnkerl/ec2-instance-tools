@@ -413,7 +413,17 @@ ssh_with_pem() {
     pem_file="$2"
     echo
     echo ssh -i $pem_file $username_and_ip_address
+
+    set +e
     ssh -i $pem_file $username_and_ip_address
+    status=$?
+    echo "ssh status  $status"
+    set -e
+
+    if [ $status -ne 0 ]; then
+      # Error message already printed out
+      exit 1
+    fi
 }
 
 get_ip_address() {
@@ -510,17 +520,18 @@ start_wait_ssh_instance() {
             continue
         fi
 
-        # Empirically I need juuuust a bit more wait before logging in
-        echo "final patience ..."
-        sleep 5
-
         t1=$(date +%s)
         echo "timestamp   $t1"
 
         echo ssh -i $pem_file $username@$ip_address
+        set +e
         ssh -i $pem_file $username@$ip_address
         status=$?
         echo "ssh status  $status"
+        set -e
+        if [ $status -ne 0 ]; then
+          continue
+        fi
 
         t2=$(date +%s)
         echo "timestamp   $t2"
