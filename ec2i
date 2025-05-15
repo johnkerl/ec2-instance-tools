@@ -414,13 +414,11 @@ ssh_with_pem() {
     echo
     echo ssh -i $pem_file $username_and_ip_address
 
-    set +e
-    ssh -i $pem_file $username_and_ip_address
-    status=$?
-    echo "ssh status  $status"
-    set -e
+    ok="true"
+    ssh -i $pem_file $username_and_ip_address || ok="false"
+    echo "ssh ok:  $ok"
 
-    if [ $status -ne 0 ]; then
+    if [ $ok != "true" ]; then
       # Error message already printed out
       exit 1
     fi
@@ -524,12 +522,10 @@ start_wait_ssh_instance() {
         echo "timestamp   $t1"
 
         echo ssh -i $pem_file $username@$ip_address
-        set +e
-        ssh -i $pem_file $username@$ip_address
-        status=$?
-        echo "ssh status  $status"
-        set -e
-        if [ $status -ne 0 ]; then
+        ok="true"
+        ssh -i $pem_file $username@$ip_address || ok="false"
+        echo "ssh ok:  $ok"
+        if [ $ok != "true" ]; then
           continue
         fi
 
@@ -537,7 +533,7 @@ start_wait_ssh_instance() {
         echo "timestamp   $t2"
         echo "ssh seconds $[t2-t1]"
 
-        if [ $status -eq 0 ]; then
+        if [ $ok == "true" ]; then
           break
         fi
         echo "Awaiting ssh ..."
