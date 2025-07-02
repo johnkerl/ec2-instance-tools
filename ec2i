@@ -295,8 +295,6 @@ list_instances() {
 
                     epithet = "???";
                     name = "???";
-                    core = "";
-                    python = "";
                     os = "";
                     arch = "";
                     cpu = "";
@@ -304,25 +302,21 @@ list_instances() {
                     pph = "";
 
                     for (tag in tags) {
+                        # print "TAG:", tag;
                         if (tag["Key"] == "Epithet") {
                             epithet = tag["Value"];
                         } elif (tag["Key"] == "Name") {
                             name = tag["Value"];
 
-                        } elif (tag["Key"] == "Core") {
-                            core = tag["Value"];
-                        } elif (tag["Key"] == "Python") {
-                            python = tag["Value"];
-
-                        } elif (tag["Key"] == "os") {
+                        } elif (tag["Key"] == "OS") {
                             os = tag["Value"];
-                        } elif (tag["Key"] == "arch") {
+                        } elif (tag["Key"] == "Arch") {
                             arch = tag["Value"];
-                        } elif (tag["Key"] == "cpu") {
+                        } elif (tag["Key"] == "CPU") {
                             cpu = int(tag["Value"]);
-                        } elif (tag["Key"] == "ram") {
+                        } elif (tag["Key"] == "RAM") {
                             ram = int(tag["Value"]);
-                        } elif (tag["Key"] == "pph") {
+                        } elif (tag["Key"] == "PPH") {
                             pph = int(tag["Value"]);
                         }
                     }
@@ -330,8 +324,6 @@ list_instances() {
                     out["State"]   = instance["State"]["Name"];
                     out["Epithet"] = epithet;
                     out["Name"]    = name;
-                    out["Core"]    = core;
-                    out["Python"]  = python;
                     out["OS"]      = os;
                     out["Arch"]    = arch;
                     out["CPU"]     = cpu;
@@ -416,7 +408,7 @@ ssh_with_pem() {
 
     ok="true"
     ssh -i $pem_file $username_and_ip_address || ok="false"
-    echo "ssh ok:  $ok"
+    echo "ssh ok $ok"
 
     if [ $ok != "true" ]; then
       # Error message already printed out
@@ -523,17 +515,23 @@ start_wait_ssh_instance() {
 
         echo ssh -i $pem_file $username@$ip_address
         ok="true"
+
         ssh -i $pem_file $username@$ip_address || ok="false"
-        echo "ssh ok:  $ok"
-        if [ $ok != "true" ]; then
-          continue
-        fi
 
         t2=$(date +%s)
+        dt=$[t2 - t1]
+
+        echo "ssh ok      $ok"
         echo "timestamp   $t2"
-        echo "ssh seconds $[t2-t1]"
+        echo "ssh seconds $dt"
 
         if [ $ok == "true" ]; then
+          break
+        fi
+        if [ $dt -gt 100 ]; then
+          # Example: voluntary "~." hangup after long-running session.
+          # Don't retry. Our retry loop here is intended solely for
+          # adaptive timing in instance-startup scenarios.
           break
         fi
         echo "Awaiting ssh ..."
